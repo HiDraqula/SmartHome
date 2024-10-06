@@ -31,57 +31,69 @@
 </style>
 
 <body>
-    <div class="container mx-auto p-5">
+    <div class="flex flex-col px-7 py-7">
         <h1 class="text-4xl font-bold mb-6">Smart Home Monitoring System</h1>
 
 
-
         <div class="mb-6">
-            <h2 class="text-2xl font-semibold">Temperature and Humidity Monitoring</h2>
-            <p>Temperature: <span id="temperature">--</span> °C</p>
-            <p>Humidity: <span id="humidity">--</span> %</p>
+            <h2 class="text-2xl font-semibold text-start mb-2 text-slate-800">Temperature and Humidity Monitoring</h2>
+
+
             <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <h3 class="text-xl font-semibold mb-3">Temperature History</h3>
-                    <canvas id="temperatureChart"></canvas>
+                <div class="flex">
+                    <div class="flex-1">
+                        <canvas id="temperatureChart"></canvas>
+                        <!-- <h3 class="text-xl font-semibold mb-3">Temperature History</h3> -->
+                    </div>
+                    <div class="flex justify-center items-center flex-col ">
+                        <p class="font-semibold text-slate-700 mb-2">Temperature</p>
+                        <p class="text-2xl"><span id="temperature">--</span> °C</p>
+                    </div>
+
                 </div>
-                <div>
-                    <h3 class="text-xl font-semibold mb-3">Humidity History</h3>
-                    <canvas id="humidityChart"></canvas>
+                <div class="flex">
+                    <div class="flex-1">
+                        <canvas id="humidityChart"></canvas>
+                        <!-- <h3 class="text-xl font-semibold mb-3">Humidity History</h3> -->
+                    </div>
+                    <div class="flex justify-center items-center flex-col ">
+                        <p class="font-semibold text-slate-700 mb-2">Humidity</p>
+                        <p class="text-2xl"><span id="humidity">--</span> %</p>
+
+                    </div>
                 </div>
             </div>
 
         </div>
+        <h2 class="text-2xl font-semibold text-start mb-2 text-slate-800">Fan Speed History</h2>
         <div class="grid grid-cols-2 gap-6">
-            <div>
-
-                <div class="mb-6">
-                    <h2 class="text-2xl font-semibold">Fan Speed History</h2>
+            <div class="flex">
+                <div class="flex-1 mb-6">
                     <canvas id="fanSpeedChart" width="400" height="200"></canvas>
+                </div>
+                <div class="flex">
+                    <div class="flex justify-center items-center flex-col ">
+                        <p class="font-semibold text-slate-700 mb-2">Fan Speed</p>
+                        <p class="text-2xl"><span id="fanspeed">--</span></p>
+
+                    </div>
                 </div>
 
 
             </div>
-            <div class="mb-6">
+            <div class="mb-6 flex justify-center items-center flex-col">
 
-                <h2 class="text-2xl font-semibold">Motor Speed Control</h2>
+                <h2 class="text-2xl font-semibold">Fan Speed Control</h2>
                 <div class="my-3 motorControl flex justify-center items-center gap-2">
                     <label for="motorSpeed">Set Speed:</label>
                     <input type="range" min="0" max="255" value="60" id="motorSpeed"
                         oninput="debouncedUpdateSpeed(this.value)">
-                    <span id="speedValue">60</span>
+                    <input type="number" min="0" max="255" value="60" id="speedValue"
+                        oninput="debouncedUpdateSpeed(this.value)">
+                    <!-- <span id="speedValue">60</span> -->
                 </div>
                 <p id="status" class="text-lg mt-3"></p>
-                <div class="mb-6">
-                    <h2 class="text-2xl font-semibold">Fan Control</h2>
-                    <div class="motorControl">
-                        <button onclick="controlMotor('forward')">Forward</button>
-                        <button onclick="controlMotor('backward')">Backward</button>
-                        <button onclick="controlMotor('stop')">Stop</button>
-                        <button onclick="controlMotor('check')">Check Status</button>
-                    </div>
-                    <p id="lastOperation" class="text-xl font-semibold mt-4">Last Motor Operation: --</p>
-                </div>
+
             </div>
 
         </div>
@@ -92,6 +104,16 @@
             <p>Click to turn <a href="ledOff" target="myIframe" class="text-blue-600">LED OFF</a></p>
             <p>LED State: <iframe name="myIframe" width="100" height="25" frameborder="0"></iframe></p>
         </div>
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold">Motor Control</h2>
+            <div class="motorControl">
+                <button onclick="controlMotor('forward')">Forward</button>
+                <button onclick="controlMotor('backward')">Backward</button>
+                <button onclick="controlMotor('stop')">Stop</button>
+                <button onclick="controlMotor('check')">Check Status</button>
+            </div>
+            <p id="lastOperation" class="text-xl font-semibold mt-4">Last Motor Operation: --</p>
+        </div>
 
 
     </div>
@@ -101,6 +123,7 @@
         const motorSpeed = document.getElementById('motorSpeed');
         const speedValue = document.getElementById('speedValue');
         const statusEl = document.getElementById('status');
+        const fanspeedEl = document.getElementById('fanspeed');
         const lastOperationEl = document.getElementById('lastOperation');
         let timeoutId;
         let tempData = JSON.parse(localStorage.getItem('tempData')) || [];
@@ -212,12 +235,13 @@
         // Function to update motor speed
         function updateSpeed() {
             const speed = motorSpeed.value;
-            speedValue.textContent = speed;
+            speedValue.value = speed;
 
             fetch(`${baseUrl}/setSpeed?value=${speed}`)
                 .then(response => response.text())
                 .then(data => {
                     statusEl.textContent = `Speed set to ${speed}`;
+                    fanspeedEl.textContent = speed;
                 })
                 .catch(error => console.error('Error:', error));
         }
@@ -266,6 +290,7 @@
 
         // Function to adjust the fan speed based on temperature
         function adjustFanSpeed(currentTemperature) {
+            console.log({ currentTemperature, referenceTemperature, referenceSpeed });
             const temperatureDifference = currentTemperature - referenceTemperature;
 
             // Calculate new fan speed based on temperature change
@@ -281,10 +306,11 @@
                 newFanSpeed = Math.max(referenceSpeed + Math.ceil(temperatureDifference * (speedFactor * referenceSpeed)), 0);
             }
 
+            console.log({ newFanSpeed }, motorSpeed.value)
             // Update the motor speed only if there's a significant change
-            if (newFanSpeed !== motorSpeed.value) {
+            if (newFanSpeed !== +motorSpeed.value) {
                 motorSpeed.value = newFanSpeed;
-                speedValue.textContent = newFanSpeed;
+                // speedValue.textContent = newFanSpeed;
                 updateSpeed(); // Call update to send new speed to the server
             }
         }
@@ -295,7 +321,14 @@
                 .then(response => response.json())
                 .then(data => {
                     const { temperature, humidity } = data;
-                    const currentTime = new Date().toLocaleTimeString();
+                    // const currentTime = new Date().toLocaleTimeString();
+                    const currentTime = new Date().toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+
 
                     document.getElementById('temperature').textContent = temperature;
                     document.getElementById('humidity').textContent = humidity;
@@ -334,8 +367,8 @@
 
         // Function to handle updating the fan reference when the user changes the speed
         function updateFanReference(newSpeed) {
-            referenceSpeed = newSpeed;
-            referenceTemperature = parseFloat(document.getElementById('temperature').textContent); // Use current temperature as reference
+            referenceSpeed = parseFloat(newSpeed) || 100;
+            referenceTemperature = parseFloat(document.getElementById('temperature').textContent) || 25; // Use current temperature as reference
             updateSpeed();
         }
         const debouncedUpdateSpeed = debounce(updateFanReference, 300);
