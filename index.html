@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Home Monitoring System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<style>
+    body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        font-size: medium;
+        text-align: center;
+    }
+
+    .motorControl * {
+        padding: 1rem;
+        background-color: lightgray;
+        border: 0;
+    }
+
+    .motorControl *:active {
+        background: rgb(191, 191, 191);
+    }
+
+    .motorControl *:focus:not(:active) {
+        background: lightgreen;
+    }
+</style>
+
+<body>
+    <div class="container mx-auto p-5">
+        <h1 class="text-4xl font-bold mb-6">Smart Home Monitoring System</h1>
+
+
+
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold">Temperature and Humidity Monitoring</h2>
+            <p>Temperature: <span id="temperature">--</span> °C</p>
+            <p>Humidity: <span id="humidity">--</span> %</p>
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-xl font-semibold mb-3">Temperature History</h3>
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-3">Humidity History</h3>
+                    <canvas id="humidityChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+        <div class="grid grid-cols-2 gap-6">
+            <div>
+
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold">Fan Speed History</h2>
+                    <canvas id="fanSpeedChart" width="400" height="200"></canvas>
+                </div>
+
+
+            </div>
+            <div class="mb-6">
+
+                <h2 class="text-2xl font-semibold">Motor Speed Control</h2>
+                <div class="my-3 motorControl flex justify-center items-center gap-2">
+                    <label for="motorSpeed">Set Speed:</label>
+                    <input type="range" min="0" max="255" value="60" id="motorSpeed"
+                        oninput="debouncedUpdateSpeed(this.value)">
+                    <span id="speedValue">60</span>
+                </div>
+                <p id="status" class="text-lg mt-3"></p>
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold">Fan Control</h2>
+                    <div class="motorControl">
+                        <button onclick="controlMotor('forward')">Forward</button>
+                        <button onclick="controlMotor('backward')">Backward</button>
+                        <button onclick="controlMotor('stop')">Stop</button>
+                        <button onclick="controlMotor('check')">Check Status</button>
+                    </div>
+                    <p id="lastOperation" class="text-xl font-semibold mt-4">Last Motor Operation: --</p>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold">WiFi LED Control</h2>
+            <p>Click to turn <a href="ledOn" target="myIframe" class="text-blue-600">LED ON</a></p>
+            <p>Click to turn <a href="ledOff" target="myIframe" class="text-blue-600">LED OFF</a></p>
+            <p>LED State: <iframe name="myIframe" width="100" height="25" frameborder="0"></iframe></p>
+        </div>
+
+
+    </div>
+
+    <script>
+        const baseUrl = "http://192.168.219.200";
+        const motorSpeed = document.getElementById('motorSpeed');
+        const speedValue = document.getElementById('speedValue');
+        const statusEl = document.getElementById('status');
+        const lastOperationEl = document.getElementById('lastOperation');
+        let timeoutId;
+        let tempData = JSON.parse(localStorage.getItem('tempData')) || [];
+        let humidityData = JSON.parse(localStorage.getItem('humidityData')) || [];
+        let fanSpeedData = JSON.parse(localStorage.getItem('fanSpeedData')) || [];
+        let labels = JSON.parse(localStorage.getItem('labels')) || [];
+
+        let referenceTemperature = null; // To hold the reference temperature
+        let referenceSpeed = null; // To hold the reference fan speed
+
+        const MAX_POINTS = 150; // 5 minutes worth of data, with one point every 2 seconds
+
+        // Initialize the temperature and humidity charts
+        const tempChartCtx = document.getElementById('temperatureChart').getContext('2d');
+        const humidityChartCtx = document.getElementById('humidityChart').getContext('2d');
+        const fanSpeedChartCtx = document.getElementById('fanSpeedChart').getContext('2d');
+
+
+        const temperatureChart = new Chart(tempChartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Temperature (°C)',
+                    data: tempData,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+
+        const humidityChart = new Chart(humidityChartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Humidity (%)',
+                    data: humidityData,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+
+        const fanSpeedChart = new Chart(fanSpeedChartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Fan Speed',
+                    data: fanSpeedData,
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 255 // Max fan speed
+                    }
+                }
+            }
+        });
+
+        // Debounced function to limit API calls for speed updates
+        function debounce(func, delay) {
+            return function (...args) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+
+        // Function to update motor speed
+        function updateSpeed() {
+            const speed = motorSpeed.value;
+            speedValue.textContent = speed;
+
+            fetch(`${baseUrl}/setSpeed?value=${speed}`)
+                .then(response => response.text())
+                .then(data => {
+                    statusEl.textContent = `Speed set to ${speed}`;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // const debouncedUpdateSpeed = debounce(updateSpeed, 300);
+
+        // Function to control motor direction and pass the current speed value
+        function controlMotor(action) {
+            const speed = motorSpeed.value;
+
+            fetch(`${baseUrl}/${action}?speed=${speed}`)
+                .then(response => response.text())
+                .then(data => {
+                    statusEl.textContent = data;
+                    lastOperationEl.textContent = `Last Motor Operation: ${action}`;
+                    localStorage.setItem('lastOperation', action); // Store last motor operation
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Function to store and keep only the last 5 minutes (150 data points) in localStorage
+        function storeData(currentTime, temperature, humidity, fanSpeed) {
+            if (labels.length >= MAX_POINTS) {
+                labels.shift(); // Remove the oldest time point
+                tempData.shift(); // Remove the oldest temperature data point
+                humidityData.shift(); // Remove the oldest humidity data point
+                fanSpeedData.shift(); // Remove the oldest fan speed data point
+            }
+
+            labels.push(currentTime); // Add new time point
+            tempData.push(temperature); // Add new temperature data point
+            humidityData.push(humidity); // Add new humidity data point
+            fanSpeedData.push(fanSpeed); // Add new fan speed data point
+
+            // Save data to localStorage
+            localStorage.setItem('labels', JSON.stringify(labels));
+            localStorage.setItem('tempData', JSON.stringify(tempData));
+            localStorage.setItem('humidityData', JSON.stringify(humidityData));
+            localStorage.setItem('fanSpeedData', JSON.stringify(fanSpeedData));
+
+            // Update the charts with new data
+            temperatureChart.update();
+            humidityChart.update();
+            fanSpeedChart.update();
+        }
+
+        // Function to adjust the fan speed based on temperature
+        function adjustFanSpeed(currentTemperature) {
+            const temperatureDifference = currentTemperature - referenceTemperature;
+
+            // Calculate new fan speed based on temperature change
+            let newFanSpeed = referenceSpeed;
+            let speedFactor = ((255 - 60) / 10) / 100; // => ((max-min)/factor)/100
+
+            // Adjust fan speed based on temperature difference
+            if (temperatureDifference > 0) {
+                // Increase speed by a smaller factor (e.g., 2% of reference speed per degree)
+                newFanSpeed = Math.min(referenceSpeed + Math.floor(temperatureDifference * (speedFactor * referenceSpeed)), 255);
+            } else if (temperatureDifference < 0) {
+                // Decrease speed by a smaller factor (e.g., 2% of reference speed per degree)
+                newFanSpeed = Math.max(referenceSpeed + Math.ceil(temperatureDifference * (speedFactor * referenceSpeed)), 0);
+            }
+
+            // Update the motor speed only if there's a significant change
+            if (newFanSpeed !== motorSpeed.value) {
+                motorSpeed.value = newFanSpeed;
+                speedValue.textContent = newFanSpeed;
+                updateSpeed(); // Call update to send new speed to the server
+            }
+        }
+
+        // Fetch temperature and humidity data every 2 seconds and update the charts
+        function updateTemperatureHumidity() {
+            fetch(`${baseUrl}/readDHT`)
+                .then(response => response.json())
+                .then(data => {
+                    const { temperature, humidity } = data;
+                    const currentTime = new Date().toLocaleTimeString();
+
+                    document.getElementById('temperature').textContent = temperature;
+                    document.getElementById('humidity').textContent = humidity;
+
+                    // Check if we have a reference to adjust the fan speed
+                    if (referenceTemperature !== null && referenceSpeed !== null) {
+                        // Calculate the new fan speed based on the current temperature
+                        adjustFanSpeed(temperature);
+                    }
+
+                    // Update the fan speed based on the current reading
+                    //if (temperature > 25) { // Adjust this threshold as needed
+                    //    referenceTemperature = temperature;
+                    //    referenceSpeed = motorSpeed.value; // Set the current fan speed as reference
+                    //}
+                    // Fetch the fan speed and update the fan speed chart
+                    //fetch(`${baseUrl}/fanSpeed`)
+                    //    .then(response => response.json())
+                    //    .then(fanData => {
+                    //        const currentFanSpeed = fanData.speed;
+                    //        motorSpeed.value = currentFanSpeed;
+                    //        speedValue.textContent = currentFanSpeed;
+                    //    });
+
+                    storeData(currentTime, temperature, humidity, motorSpeed.value); // Store the last 5 minutes of data
+                })
+                .catch(error => console.error('Error:', error))
+
+        }
+
+        // Restore last motor operation
+        const lastOperation = localStorage.getItem('lastOperation');
+        if (lastOperation) {
+            lastOperationEl.textContent = `Last Motor Operation: ${lastOperation}`;
+        }
+
+        // Function to handle updating the fan reference when the user changes the speed
+        function updateFanReference(newSpeed) {
+            referenceSpeed = newSpeed;
+            referenceTemperature = parseFloat(document.getElementById('temperature').textContent); // Use current temperature as reference
+            updateSpeed();
+        }
+        const debouncedUpdateSpeed = debounce(updateFanReference, 300);
+
+        // Fetch sensor data every 2 seconds
+        setInterval(updateTemperatureHumidity, 2000);
+    </script>
+
+
+</body>
+
+</html>
