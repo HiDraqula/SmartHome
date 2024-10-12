@@ -16,7 +16,7 @@
     }
 
     .motorControl * {
-        padding: 1rem;
+        padding: 1.5rem 2rem;
         background-color: lightgray;
         border: 0;
     }
@@ -27,6 +27,12 @@
 
     .motorControl *:focus:not(:active) {
         background: lightgreen;
+    }
+
+    .motorControl.v2 * {
+        padding: 1.5rem 2rem;
+        background-color: lightgray;
+        border: 0;
     }
 </style>
 
@@ -81,16 +87,26 @@
 
 
             </div>
-            <div class="mb-6 flex justify-center items-center flex-col">
+            <div class="mb-6 flex justify-center items-center flex-row gap-3">
+                <div class="flex flex-col gap-3">
 
-                <h2 class="text-2xl font-semibold">Fan Speed Control</h2>
-                <div class="my-3 motorControl flex justify-center items-center gap-2">
-                    <label for="motorSpeed">Set Speed:</label>
-                    <input type="range" min="0" max="255" value="60" id="motorSpeed"
-                        oninput="debouncedUpdateSpeed(this.value)">
-                    <input type="number" min="0" max="255" value="60" id="speedValue"
-                        oninput="debouncedUpdateSpeed(this.value)">
-                    <!-- <span id="speedValue">60</span> -->
+                    <h2 class="text-2xl font-semibold">Fan Control</h2>
+                    <div class="motorControl v2">
+                        <button class="bg-green-300" onclick="controlMotor('forward')">Start</button>
+                        <button class="bg-green-300" onclick="controlMotor('stop')">Stop</button>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-3 text-left">
+
+                    <h2 class="text-lg font-semibold text-slate-700">Speed Control</h2>
+                    <div class="motorControl flex justify-center items-center gap-2">
+                        <label for="motorSpeed">Set Speed:</label>
+                        <input type="range" min="0" max="255" value="60" id="motorSpeed"
+                            oninput="debouncedUpdateSpeed(this.value)">
+                        <input type="number" min="0" max="255" value="60" id="speedValue"
+                            oninput="debouncedUpdateSpeed(this.value)">
+                        <!-- <span id="speedValue">60</span> -->
+                    </div>
                 </div>
                 <p id="status" class="text-lg mt-3"></p>
 
@@ -119,7 +135,7 @@
     </div>
 
     <script>
-        const baseUrl = "http://192.168.144.200";
+        const baseUrl = "http://192.168.52.200";
         const motorSpeed = document.getElementById('motorSpeed');
         const speedValue = document.getElementById('speedValue');
         const statusEl = document.getElementById('status');

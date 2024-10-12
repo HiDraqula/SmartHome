@@ -17,52 +17,6 @@ const char MAIN_page[] PROGMEM = R"=====(
 <!doctypehtml><meta charset="utf-8"><meta content="width=device-width,initial-scale=1" name="viewport"><title>Smart Home Monitoring System</title><script src="https://cdn.tailwindcss.com"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;font-size:medium;text-align:center}.motorControl *{padding:1rem;background-color:#d3d3d3;border:0}.motorControl :active{background:#bfbfbf}.motorControl :focus:not(:active){background:#90ee90}</style><div class="flex flex-col px-7 py-7"><h1 class="mb-6 font-bold text-4xl">Smart Home Monitoring System</h1><div class="mb-6"><h2 class="font-semibold mb-2 text-2xl text-slate-800 text-start">Temperature and Humidity Monitoring</h2><div class="gap-6 grid grid-cols-2"><div class="flex"><div class="flex-1"><canvas id="temperatureChart"></canvas></div><div class="flex flex-col items-center justify-center"><p class="font-semibold mb-2 text-slate-700">Temperature</p><p class="text-2xl"><span id="temperature">--</span>°C</p></div></div><div class="flex"><div class="flex-1"><canvas id="humidityChart"></canvas></div><div class="flex flex-col items-center justify-center"><p class="font-semibold mb-2 text-slate-700">Humidity</p><p class="text-2xl"><span id="humidity">--</span>%</p></div></div></div></div><h2 class="font-semibold mb-2 text-2xl text-slate-800 text-start">Fan Speed History</h2><div class="gap-6 grid grid-cols-2"><div class="flex"><div class="mb-6 flex-1"><canvas id="fanSpeedChart" height="200" width="400"></canvas></div><div class="flex"><div class="flex flex-col items-center justify-center"><p class="font-semibold mb-2 text-slate-700">Fan Speed</p><p class="text-2xl"><span id="fanspeed">--</span></p></div></div></div><div class="flex flex-col items-center justify-center mb-6"><h2 class="font-semibold text-2xl">Fan Speed Control</h2><div class="flex items-center justify-center gap-2 motorControl my-3"><label for="motorSpeed">Set Speed:</label><input id="motorSpeed" max="255" min="0" oninput="debouncedUpdateSpeed(this.value)" type="range" value="60"> <input id="speedValue" max="255" min="0" oninput="debouncedUpdateSpeed(this.value)" type="number" value="60"></div><p class="mt-3 text-lg" id="status"></p></div></div><div class="mb-6"><h2 class="font-semibold text-2xl">WiFi LED Control</h2><p>Click to turn<a class="text-blue-600" href="ledOn" target="myIframe">LED ON</a></p><p>Click to turn<a class="text-blue-600" href="ledOff" target="myIframe">LED OFF</a></p><p>LED State:<iframe frameborder="0" height="25" name="myIframe" width="100"></iframe></p></div><div class="mb-6"><h2 class="font-semibold text-2xl">Motor Control</h2><div class="motorControl"><button onclick='controlMotor("forward")'>Forward</button><button onclick='controlMotor("backward")'>Backward</button><button onclick='controlMotor("stop")'>Stop</button><button onclick='controlMotor("check")'>Check Status</button></div><p class="font-semibold mt-4 text-xl" id="lastOperation">Last Motor Operation: --</p></div></div><script>let baseUrl="",motorSpeed=document.getElementById("motorSpeed"),speedValue=document.getElementById("speedValue"),statusEl=document.getElementById("status"),fanspeedEl=document.getElementById("fanspeed"),lastOperationEl=document.getElementById("lastOperation"),timeoutId,tempData=JSON.parse(localStorage.getItem("tempData"))||[],humidityData=JSON.parse(localStorage.getItem("humidityData"))||[],fanSpeedData=JSON.parse(localStorage.getItem("fanSpeedData"))||[],labels=JSON.parse(localStorage.getItem("labels"))||[],referenceTemperature=null,referenceSpeed=null,MAX_POINTS=150,tempChartCtx=document.getElementById("temperatureChart").getContext("2d"),humidityChartCtx=document.getElementById("humidityChart").getContext("2d"),fanSpeedChartCtx=document.getElementById("fanSpeedChart").getContext("2d"),temperatureChart=new Chart(tempChartCtx,{type:"line",data:{labels:labels,datasets:[{label:"Temperature (°C)",data:tempData,borderColor:"rgba(255, 99, 132, 1)",borderWidth:2,fill:!1}]},options:{scales:{x:{title:{display:!0,text:"Time"}},y:{beginAtZero:!1}}}}),humidityChart=new Chart(humidityChartCtx,{type:"line",data:{labels:labels,datasets:[{label:"Humidity (%)",data:humidityData,borderColor:"rgba(54, 162, 235, 1)",borderWidth:2,fill:!1}]},options:{scales:{x:{title:{display:!0,text:"Time"}},y:{beginAtZero:!1}}}}),fanSpeedChart=new Chart(fanSpeedChartCtx,{type:"line",data:{labels:labels,datasets:[{label:"Fan Speed",data:fanSpeedData,borderColor:"rgba(255, 206, 86, 1)",borderWidth:2,fill:!1}]},options:{scales:{x:{title:{display:!0,text:"Time"}},y:{beginAtZero:!0,max:255}}}});function debounce(t,a){return function(...e){clearTimeout(timeoutId),timeoutId=setTimeout(()=>t.apply(this,e),a)}}function updateSpeed(){let t=motorSpeed.value;speedValue.value=t,fetch(baseUrl+"/setSpeed?value="+t).then(e=>e.text()).then(e=>{statusEl.textContent="Speed set to "+t,fanspeedEl.textContent=t}).catch(e=>console.error("Error:",e))}function controlMotor(t){var e=motorSpeed.value;fetch(baseUrl+`/${t}?speed=`+e).then(e=>e.text()).then(e=>{statusEl.textContent=e,lastOperationEl.textContent="Last Motor Operation: "+t,localStorage.setItem("lastOperation",t)}).catch(e=>console.error("Error:",e))}function storeData(e,t,a,r){labels.length>=MAX_POINTS&&(labels.shift(),tempData.shift(),humidityData.shift(),fanSpeedData.shift()),labels.push(e),tempData.push(t),humidityData.push(a),fanSpeedData.push(r),localStorage.setItem("labels",JSON.stringify(labels)),localStorage.setItem("tempData",JSON.stringify(tempData)),localStorage.setItem("humidityData",JSON.stringify(humidityData)),localStorage.setItem("fanSpeedData",JSON.stringify(fanSpeedData)),temperatureChart.update(),humidityChart.update(),fanSpeedChart.update()}function adjustFanSpeed(e){console.log({currentTemperature:e,referenceTemperature:referenceTemperature,referenceSpeed:referenceSpeed});e-=referenceTemperature;let t=referenceSpeed;0<e?t=Math.min(referenceSpeed+Math.floor(e*(.195*referenceSpeed)),255):e<0&&(t=Math.max(referenceSpeed+Math.ceil(e*(.195*referenceSpeed)),0)),console.log({newFanSpeed:t},motorSpeed.value),t!==+motorSpeed.value&&(motorSpeed.value=t,updateSpeed())}function updateTemperatureHumidity(){fetch(baseUrl+"/readDHT").then(e=>e.json()).then(e=>{var{temperature:e,humidity:t}=e,a=(new Date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:!1});document.getElementById("temperature").textContent=e,document.getElementById("humidity").textContent=t,null!==referenceTemperature&&null!==referenceSpeed?adjustFanSpeed(e):e&&(referenceTemperature=e,referenceSpeed=100,adjustFanSpeed(e)),storeData(a,e,t,motorSpeed.value)}).catch(e=>console.error("Error:",e))}let lastOperation=localStorage.getItem("lastOperation");function updateFanReference(e){referenceSpeed=parseFloat(e)||100,referenceTemperature=parseFloat(document.getElementById("temperature").textContent)||25,updateSpeed()}lastOperation&&(lastOperationEl.textContent="Last Motor Operation: "+lastOperation);let debouncedUpdateSpeed=debounce(updateFanReference,300);setInterval(updateTemperatureHumidity,2e3)</script>
 )=====";
 
-
-// String SendHTML(float Temperaturestat, float Humiditystat) {
-//   String ptr = "<!DOCTYPE html> <html>\n";
-//   ptr += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
-//   // ptr += "<meta http-equiv=\"refresh\" content=\"2\" >\n";
-//   ptr += "<title>ESP8266 Weather Report</title>\n";
-//   ptr += "<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}\n";
-//   ptr += "body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;}\n";
-//   ptr += "p {font-size: 24px;color: #444444;margin-bottom: 10px;}\n";
-//   ptr += "</style>\n";
-//   ptr += "<script>\n";
-//   ptr += "setInterval(loadDoc,2000);\n";
-//   ptr += "function loadDoc() {\n";
-//   ptr += "var xhttp = new XMLHttpRequest();\n";
-//   ptr += "xhttp.onreadystatechange = function() {\n";
-//   ptr += "if (this.readyState == 4 && this.status == 200) {\n";
-//   ptr += "document.getElementById(\"webpage\").innerHTML =this.responseText}\n";
-//   ptr += "};\n";
-//   ptr += "xhttp.open(\"GET\", \"/\", true);\n";
-//   ptr += "xhttp.send();\n";
-//   ptr += "}\n";
-//   ptr += "</script>\n";
-//   ptr += "</head>\n";
-//   ptr += "<body>\n";
-//   ptr += "<div id=\"webpage\">\n";
-//   ptr += "<h1>ESP8266 NodeMCU Weather Report</h1>\n";
-
-//   ptr += "<p>Temperature: ";
-//   // ptr += (int)Temperaturestat;
-//   // ptr += (float)Temperaturestat;
-//   ptr += String(Temperaturestat, 2);  // Format temperature with 2 decimal places
-//   // ptr += "°C</p>";
-//   ptr += "&deg;C</p>";
-//   ptr += "<p>Humidity: ";
-//   // ptr += (int)Humiditystat;
-//   // ptr += (float)Humiditystat;
-//   ptr += String(Humiditystat, 2);  // Format humidity with 2 decimal places
-//   ptr += "%</p>";
-
-//   ptr += "</div>\n";
-//   ptr += "</body>\n";
-//   ptr += "</html>\n";
-//   return ptr;
-// }
-// //---------------------------------------------------------------
-
 ESP8266WiFiMulti wifiMulti;   // Create an instance of the ESP8266WiFiMulti class, called 'wifiMulti'
 ESP8266WebServer server(80);  // Create a webserver object that listens for HTTP request on port 80
 // AsyncWebServer server(80);  // Create a webserver object that listens for HTTP request on port 80
@@ -97,27 +51,8 @@ int motorspeed = 60;
 // const char* ssid = "AniFy";
 // const char* password = "Ani@4321";
 
-// void handleRoot();              // function prototypes for HTTP handlers
 // SERVER FUNCTIONS
-void handleRoot() {
-  // server.send(200, "text/plain", "Hello world!");   // Send HTTP status 200 (Ok) and send some text to the browser/client
-  // server.send(200, "text/html", "<form action=\"/LED\" method=\"POST\"><input type=\"submit\" value=\"Toggle LED\"></form>");
-
-  Serial.println("You called root page");
-  // String s = MAIN_page;              //Read HTML contents
-  server.send(200, "text/html", MAIN_page);  //Send web page
-
-  // Temperature = dht.readTemperature();  // Gets the values of the temperature
-  // Humidity = dht.readHumidity();        // Gets the values of the humidity
-  // // Check if any reads failed and exit the loop early
-  // if (isnan(Humidity) || isnan(Temperature)) {
-  //   Serial.println("Failed to read from DHT sensor!");
-  // } else {
-  //   // Print the sensor readings to the Serial Monitor
-  //   Serial.printf("Temperature: %.2f°C, Humidity: %.2f%%\n", Temperature, Humidity);
-  // }
-  // server.send(200, "text/html", SendHTML(Temperature, Humidity));
-}
+// void handleRoot();              // function prototypes for HTTP handlers
 void handleNotFound() {
   server.send(404, "text/plain", "404: Not found");  // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
 }
@@ -324,16 +259,17 @@ void setup(void) {
     }
   });
 
-    server.on("/getUpdates", []() {
+  server.on("/getUpdates", []() {
     float Temperature = dht.readTemperature();
     float Humidity = dht.readHumidity();
     int speed = analogRead(enable1Pin);
     bool motorState = digitalRead(motor1Pin1) && digitalRead(motor1Pin2);
     // Serial.printf("Temperature: %.2f°C, Humidity: %.2f%%\n", Temperature, Humidity);
     String json = "{\"status\":\"OK\", \"temperature\": " + String(Temperature) + ", \"humidity\": " + String(Humidity) + ", \"speed\": " + String(speed) + ", \"motorStatus\": " + (motorState ? "\"ON\"" : "\"OFF\"") + "}";
-    Serial.printf(json);
+    // Serial.printf(json);
+    // Serial.printf("%s", json.c_str());
+    Serial.print(json);
     server.send(200, "application/json", json);
-  
   });
 
   server.onNotFound(handleNotFound);  // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
@@ -347,17 +283,4 @@ void setup(void) {
 
 void loop(void) {
   server.handleClient();  // Listen for HTTP requests from clients
-  // Read humidity and temperature from the DHT22 sensor
-  // float humidity = dht.readHumidity();
-  // float temperature = dht.readTemperature();
-
-  // // Check if any reads failed and exit the loop early
-  // if (isnan(humidity) || isnan(temperature)) {
-  //   Serial.println("Failed to read from DHT sensor!");
-  // } else {
-  //   // Print the sensor readings to the Serial Monitor
-  //   Serial.printf("Temperature: %.2f°C, Humidity: %.2f%%\n", temperature, humidity);
-  // }
-
-  // delay(2000);  // Wait 2 seconds between readings
 }
